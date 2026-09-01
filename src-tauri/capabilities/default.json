@@ -1,0 +1,19 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "default",
+  "description": "Smallest surface the app needs: IPC to our own commands, native file/save dialogs, and the window controls the custom title bar draws itself. Opening and revealing files happens in Rust, so the opener plugin needs no frontend permission.",
+  "windows": [
+    "main"
+  ],
+  "permissions": [
+    "core:default",
+    "core:window:allow-start-dragging",
+    "core:window:allow-start-resize-dragging",
+    "core:window:allow-minimize",
+    "core:window:allow-toggle-maximize",
+    "core:window:allow-is-maximized",
+    "core:window:allow-close",
+    "dialog:allow-open",
+    "dialog:allow-save"
+  ]
+}

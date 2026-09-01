@@ -1,0 +1,88 @@
+name: Release
+
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Existing tag to build (e.g. v0.1.0)
+        required: true
+
+jobs:
+  release:
+    permissions:
+      contents: write
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - platform: macos-latest
+            args: --target universal-apple-darwin
+            targets: aarch64-apple-darwin,x86_64-apple-darwin
+          - platform: ubuntu-22.04
+            args: ""
+            targets: ""
+          - platform: windows-latest
+            args: ""
+            targets: ""
+    runs-on: ${{ matrix.platform }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.tag || github.ref }}
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      # Fails the run before anything is built if the tag and RELEASE.md disagree.
+      - id: notes
+        shell: bash
+        env:
+          TAG: ${{ inputs.tag || github.ref_name }}
+        run: |
+          set -euo pipefail
+          case "$TAG" in
+            v[0-9]*) ;;
+            *) echo "::error::tag '$TAG' must look like v1.2.3"; exit 1 ;;
+          esac
+
+          conf=$(node -p "require('./src-tauri/tauri.conf.json').version")
+          [ "$conf" = "${TAG#v}" ] || { echo "::error::tauri.conf.json version $conf != tag $TAG"; exit 1; }
+
+          # Everything under "## <tag>" in RELEASE.md, up to the next "## " heading.
+          awk -v tag="$TAG" '$0 == "## " tag {f=1; next} f && /^## / {exit} f' RELEASE.md > notes.md
+          [ -s notes.md ] || { echo "::error::RELEASE.md has no '## $TAG' section"; exit 1; }
+
+          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+          { echo 'body<<__EOF__'; cat notes.md; echo '__EOF__'; } >> "$GITHUB_OUTPUT"
+
+      - if: matrix.platform == 'ubuntu-22.04'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.targets }}
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: ./src-tauri -> target
+
+      - run: npm ci
+
+      # Builds first; only creates the draft release + uploads installers if the build succeeds.
+      # First job to finish creates the draft, the others attach their assets to it.
+      - uses: tauri-apps/tauri-action@v0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tagName: ${{ steps.notes.outputs.tag }}
+          releaseName: ESL App ${{ steps.notes.outputs.tag }}
+          releaseBody: ${{ steps.notes.outputs.body }}
+          releaseDraft: true
+          prerelease: false
+          args: ${{ matrix.args }}

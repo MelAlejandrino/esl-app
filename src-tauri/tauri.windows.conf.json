@@ -1,0 +1,18 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "app": {
+    "windows": [
+      {
+        "title": "ESL App",
+        "width": 1280,
+        "height": 820,
+        "minWidth": 880,
+        "minHeight": 560,
+        "center": true,
+        "dragDropEnabled": true,
+        "decorations": false,
+        "shadow": true
+      }
+    ]
+  }
+}
