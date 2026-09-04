@@ -1,6 +1,7 @@
 import { open as openFileDialog, save as saveFileDialog } from "@tauri-apps/plugin-dialog";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { Download, ShieldCheck, Upload } from "lucide-react";
+import { openUrl } from "@tauri-apps/plugin-opener";
+import { Download, RefreshCw, ShieldCheck, Upload } from "lucide-react";
 import { useState } from "react";
 import { PageBody, PageHeader } from "../app/Shell";
 import { api } from "../lib/api";
@@ -8,6 +9,9 @@ import { today } from "../lib/format";
 import { shortcut } from "../lib/platform";
 import { useToast } from "../lib/toast";
 import { Button, ConfirmDialog, Kbd } from "../lib/ui";
+
+const REPO = "MelAlejandrino/esl-app";
+const RELEASES_URL = `https://github.com/${REPO}/releases/latest`;
 
 const SHORTCUTS: [string, string][] = [
   [shortcut("K"), "Search everything"],
@@ -43,6 +47,33 @@ export function Settings() {
     onSuccess: () => {
       qc.invalidateQueries();
       toast("Backup restored");
+    },
+    onError: (e: Error) => toast(e.message, "error"),
+  });
+
+  // Only ever runs when the teacher presses the button — nothing checks in the
+  // background. GitHub sees the request itself (IP and the webview's user agent),
+  // but nothing about them or their students is sent.
+  const updates = useMutation({
+    mutationFn: async () => {
+      let res: Response;
+      try {
+        // An unreachable host rejects rather than returning !ok, and a captive
+        // portal can hang forever — both land here as one friendly message.
+        res = await fetch(`https://api.github.com/repos/${REPO}/releases/latest`, {
+          signal: AbortSignal.timeout(10_000),
+        });
+      } catch {
+        throw new Error("Couldn't reach GitHub. Check your connection and try again.");
+      }
+      if (res.status === 404) throw new Error("No versions have been published yet.");
+      if (!res.ok) {
+        throw new Error(`GitHub couldn't answer just now (${res.status}). Try again later.`);
+      }
+      const { tag_name } = await res.json();
+      const tag = String(tag_name ?? "").replace(/^v/, "");
+      if (!tag) throw new Error("GitHub didn't say which version is newest.");
+      return tag;
     },
     onError: (e: Error) => toast(e.message, "error"),
   });
@@ -97,8 +128,9 @@ export function Settings() {
               <ShieldCheck aria-hidden className="mt-0.5 size-5 shrink-0 text-good" />
               <p className="text-xs leading-relaxed text-ink-2">
                 <span className="font-semibold text-ink">Private by default.</span> ESL App works
-                offline, has no account, and sends nothing anywhere. Your students' details, class
-                notes and materials never leave this machine.
+                offline, has no account, and never contacts anything on its own — only the update
+                check below reaches the internet, and only when you press it. Your students'
+                details, class notes and materials never leave this machine.
               </p>
             </div>
           </Group>
@@ -109,6 +141,33 @@ export function Settings() {
               <br />
               {navigator.userAgent}
             </p>
+            <div className="mt-5 flex flex-wrap items-center gap-3">
+              <Button onClick={() => updates.mutate()} disabled={updates.isPending}>
+                <RefreshCw />
+                {updates.isPending ? "Checking…" : "Check for updates"}
+              </Button>
+              {/* ponytail: GitHub's "latest" is the newest published release, so a plain
+                  string mismatch is enough — no semver parsing. It reads any mismatch as
+                  "newer", so a dev build ahead of the last release, or a tag not shaped
+                  like the version in package.json, both show as an available update.
+                  Compare version numbers properly if either starts to matter. */}
+              {updates.data &&
+                (updates.data === __APP_VERSION__ ? (
+                  <span className="num text-xs text-ink-3">You're on the latest version.</span>
+                ) : (
+                  <span className="num text-xs text-ink-2">
+                    Version {updates.data} is available.{" "}
+                    <button
+                      onClick={() =>
+                        openUrl(RELEASES_URL).catch((e: Error) => toast(e.message, "error"))
+                      }
+                      className="font-semibold text-ink underline underline-offset-2"
+                    >
+                      Open the download page
+                    </button>
+                  </span>
+                ))}
+            </div>
           </Group>
         </div>
       </PageBody>

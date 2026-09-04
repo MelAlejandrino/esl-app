@@ -1,7 +1,7 @@
 {
   "$schema": "../gen/schemas/desktop-schema.json",
   "identifier": "default",
-  "description": "Smallest surface the app needs: IPC to our own commands, native file/save dialogs, and the window controls the custom title bar draws itself. Opening and revealing files happens in Rust, so the opener plugin needs no frontend permission.",
+  "description": "Smallest surface the app needs: IPC to our own commands, native file/save dialogs, and the window controls the custom title bar draws itself. Opening and revealing files happens in Rust; the opener plugin's frontend permission is only for the releases link in Settings.",
   "windows": [
     "main"
   ],
@@ -14,6 +14,10 @@
     "core:window:allow-is-maximized",
     "core:window:allow-close",
     "dialog:allow-open",
-    "dialog:allow-save"
+    "dialog:allow-save",
+    {
+      "identifier": "opener:allow-open-url",
+      "allow": [{ "url": "https://github.com/MelAlejandrino/esl-app/*" }]
+    }
   ]
 }

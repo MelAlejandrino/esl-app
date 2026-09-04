@@ -13,6 +13,32 @@ const SUPPORTED: [&str; 14] = [
     "m4a", "mp4",
 ];
 
+/// A web link is stored in the same `path` column as a file — `kind` is LINK and
+/// anything starting http(s):// is treated as a URL rather than a disk path.
+/// ponytail: no new column and no migration; the location column already holds a
+/// location. Split it out only if links grow fields of their own.
+pub const LINK: &str = "LINK";
+
+/// Case-insensitive: this is the read-time discriminator as well as the import
+/// check, so it must never disagree with what `add_link` decided to store.
+pub fn is_url(s: &str) -> bool {
+    let starts = |p: &str| s.get(..p.len()).is_some_and(|h| h.eq_ignore_ascii_case(p));
+    starts("http://") || starts("https://")
+}
+
+/// "https://www.bbc.co.uk/learning?x=1" -> "bbc.co.uk" — the default name for a
+/// link the teacher didn't bother naming.
+/// ponytail: split on the delimiters instead of pulling in a URL crate; it only
+/// has to produce a readable label, not parse the spec.
+fn host_of(url: &str) -> &str {
+    let rest = url.split_once("://").map(|(_, r)| r).unwrap_or(url);
+    let authority = rest.split(['/', '?', '#']).next().unwrap_or(rest);
+    // Everything before the last '@' is userinfo, not the site: naming
+    // "https://bbc.co.uk@evil.example" after bbc.co.uk would be a lie.
+    let host = authority.rsplit('@').next().unwrap_or(authority);
+    host.strip_prefix("www.").unwrap_or(host)
+}
+
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Material {
@@ -29,6 +55,7 @@ pub struct Material {
     pub last_opened_at: Option<String>,
     pub tags: Vec<String>,
     /// Checked at read time, so a file moved outside the app shows as missing.
+    /// Always true for a link — checking would mean a network request per row.
     pub exists: bool,
 }
 
@@ -49,7 +76,7 @@ fn map(r: &Row) -> rusqlite::Result<Material> {
         name: r.get(1)?,
         // ponytail: one stat() per row on read. Instant for a personal library;
         // move to a `notify` watcher if someone ever indexes 50k files.
-        exists: Path::new(&path).exists(),
+        exists: is_url(&path) || Path::new(&path).exists(),
         path,
         kind: r.get(3)?,
         file_size: r.get(4)?,
@@ -179,6 +206,44 @@ pub fn import(
     Ok(out)
 }
 
+/// Add a web link to the library. Only http(s) is accepted: the URL is handed to
+/// the OS to open, so no other scheme is safe to store.
+pub fn add_link(
+    conn: &Connection,
+    url: &str,
+    name: Option<String>,
+    folder_id: Option<i64>,
+) -> Result<i64> {
+    let url = url.trim();
+    if !is_url(url) {
+        return Err(AppError::msg("A link needs to start with http:// or https://"));
+    }
+    if url.len() > 2000 {
+        return Err(AppError::msg("That link is too long."));
+    }
+    // Lowercase the scheme only — a path is case-sensitive, a scheme is not.
+    let url = match url.find("://") {
+        Some(i) => format!("{}{}", url[..i].to_ascii_lowercase(), &url[i..]),
+        None => url.to_string(),
+    };
+    let host = host_of(&url);
+    if host.is_empty() {
+        return Err(AppError::msg("That link is missing a website address."));
+    }
+    let name = name
+        .map(|n| n.trim().to_string())
+        .filter(|n| !n.is_empty())
+        .unwrap_or_else(|| host.to_string());
+    let n = conn.execute(
+        "INSERT OR IGNORE INTO materials (name, path, kind, folder_id) VALUES (?1,?2,?3,?4)",
+        params![name, url, LINK, folder_id],
+    )?;
+    if n == 0 {
+        return Err(AppError::msg("That link is already in your library."));
+    }
+    Ok(conn.last_insert_rowid())
+}
+
 fn path_of(conn: &Connection, id: i64) -> Result<String> {
     Ok(conn.query_row("SELECT path FROM materials WHERE id = ?1", params![id], |r| r.get(0))?)
 }
@@ -217,15 +282,32 @@ pub fn materials_import(
 }
 
 #[tauri::command]
+pub fn material_add_link(
+    db: tauri::State<Db>,
+    url: String,
+    name: Option<String>,
+    folder_id: Option<i64>,
+) -> Result<i64> {
+    add_link(&db.conn(), &url, name, folder_id)
+}
+
+#[tauri::command]
 pub fn material_open(app: tauri::AppHandle, db: tauri::State<Db>, id: i64) -> Result<()> {
     let path = path_of(&db.conn(), id)?;
-    if !Path::new(&path).exists() {
-        return Err(AppError::msg("This file may have been moved or deleted."));
+    if is_url(&path) {
+        app.opener().open_url(&path, None::<&str>).map_err(|e| {
+            tracing::error!(error = %e, url = %path, "open link failed");
+            AppError::msg("Couldn't open this link in your browser.")
+        })?;
+    } else {
+        if !Path::new(&path).exists() {
+            return Err(AppError::msg("This file may have been moved or deleted."));
+        }
+        app.opener().open_path(&path, None::<&str>).map_err(|e| {
+            tracing::error!(error = %e, %path, "open failed");
+            AppError::msg("Couldn't open this file. There may be no app associated with this type.")
+        })?;
     }
-    app.opener().open_path(&path, None::<&str>).map_err(|e| {
-        tracing::error!(error = %e, %path, "open failed");
-        AppError::msg("Couldn't open this file. There may be no app associated with this type.")
-    })?;
     db.conn().execute(
         "UPDATE materials SET last_opened_at = datetime('now') WHERE id = ?1",
         params![id],
@@ -236,6 +318,9 @@ pub fn material_open(app: tauri::AppHandle, db: tauri::State<Db>, id: i64) -> Re
 #[tauri::command]
 pub fn material_reveal(app: tauri::AppHandle, db: tauri::State<Db>, id: i64) -> Result<()> {
     let path = path_of(&db.conn(), id)?;
+    if is_url(&path) {
+        return Err(AppError::msg("A link has no folder to show."));
+    }
     app.opener().reveal_item_in_dir(&path).map_err(|e| {
         tracing::error!(error = %e, %path, "reveal failed");
         AppError::msg("Couldn't show this file. Its folder may no longer exist.")

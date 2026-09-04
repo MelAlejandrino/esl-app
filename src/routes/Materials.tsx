@@ -12,11 +12,13 @@ import {
   FolderSymlink,
   LayoutGrid,
   Library,
+  Link2,
   List,
   MoreHorizontal,
   Pencil,
   Plus,
   Presentation,
+  SquareArrowOutUpRight,
   Star,
   Trash2,
   Upload,
@@ -24,7 +26,7 @@ import {
 import { useEffect, useState, type ReactNode } from "react";
 import { useSearchParams } from "react-router-dom";
 import { PageHeader } from "../app/Shell";
-import { api, keys, type Material, type MaterialQuery } from "../lib/api";
+import { api, isLink, keys, type Material, type MaterialQuery } from "../lib/api";
 import { categoryOf, cn, formatBytes, relativeDate, truncateMiddle } from "../lib/format";
 import { FILE_MANAGER } from "../lib/platform";
 import { useToast } from "../lib/toast";
@@ -62,6 +64,7 @@ const ICONS = {
   image: FileImage,
   audio: FileAudio,
   video: FileVideo,
+  link: Link2,
 } as const;
 
 export function Materials() {
@@ -77,6 +80,7 @@ export function Materials() {
   const [editing, setEditing] = useState<Material>();
   const [removing, setRemoving] = useState<Material>();
   const [newFolder, setNewFolder] = useState(false);
+  const [newLink, setNewLink] = useState(false);
   const toast = useToast();
   const qc = useQueryClient();
 
@@ -162,6 +166,17 @@ export function Materials() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [folderId]);
 
+  const addLink = useMutation({
+    mutationFn: ({ url, name }: { url: string; name: string }) =>
+      api.addLink(url, name.trim() || null, folderId),
+    onSuccess: () => {
+      qc.invalidateQueries();
+      setNewLink(false);
+      toast("Link added");
+    },
+    onError: (e: Error) => toast(e.message, "error"),
+  });
+
   const openMaterial = useMutation({
     mutationFn: (id: number) => api.openMaterial(id),
     onSuccess: () => qc.invalidateQueries(),
@@ -242,21 +257,28 @@ export function Materials() {
     Separator: typeof MenuSeparator | typeof ContextMenuSeparator,
   ) => (
     <>
-      {m.exists ? (
-        <Item onSelect={() => openMaterial.mutate(m.id)}>
-          <FileText />
-          Open
-        </Item>
-      ) : (
+      {!m.exists ? (
         <Item onSelect={() => relocate.mutate(m)}>
           <FolderSymlink />
           Locate file…
         </Item>
+      ) : isLink(m) ? (
+        <Item onSelect={() => openMaterial.mutate(m.id)}>
+          <SquareArrowOutUpRight />
+          Open in browser
+        </Item>
+      ) : (
+        <Item onSelect={() => openMaterial.mutate(m.id)}>
+          <FileText />
+          Open
+        </Item>
       )}
-      <Item onSelect={() => reveal.mutate(m.id)}>
-        <FolderSymlink />
-        Reveal in {FILE_MANAGER}
-      </Item>
+      {!isLink(m) && (
+        <Item onSelect={() => reveal.mutate(m.id)}>
+          <FolderSymlink />
+          Reveal in {FILE_MANAGER}
+        </Item>
+      )}
       <Separator />
       <Item onSelect={() => setEditing(m)}>
         <Pencil />
@@ -342,7 +364,7 @@ export function Materials() {
           subtitle={
             folderId
               ? "Files dropped here are added to this folder."
-              : "Files stay where they are on disk — ESL App only remembers them."
+              : "Files stay on disk, links open in your browser — ESL App only remembers them."
           }
           actions={
             <>
@@ -366,6 +388,10 @@ export function Materials() {
                   <LayoutGrid className="size-[18px]" />
                 </ViewButton>
               </div>
+              <Button onClick={() => setNewLink(true)}>
+                <Link2 />
+                Add link
+              </Button>
               <Button variant="primary" onClick={pickFiles}>
                 <Upload />
                 Add material
@@ -439,12 +465,18 @@ export function Materials() {
                 <EmptyState
                   icon={<Library />}
                   title="Your teaching library is empty"
-                  body="Drag files in, or import your first teaching material. ESL App references your files, it never copies them."
+                  body="Drag files in, add a link to a site you teach from, or import your first teaching material. ESL App references your files, it never copies them."
                   action={
-                    <Button variant="primary" onClick={pickFiles}>
-                      <Upload />
-                      Add material
-                    </Button>
+                    <>
+                      <Button onClick={() => setNewLink(true)}>
+                        <Link2 />
+                        Add link
+                      </Button>
+                      <Button variant="primary" onClick={pickFiles}>
+                        <Upload />
+                        Add material
+                      </Button>
+                    </>
                   }
                 />
               )
@@ -598,6 +630,14 @@ export function Materials() {
           onClose={() => setEditing(undefined)}
         />
       )}
+
+      <NewLinkDialog
+        open={newLink}
+        onOpenChange={setNewLink}
+        folderName={activeFolder?.name}
+        pending={addLink.isPending}
+        onAdd={(url, name) => addLink.mutate({ url, name })}
+      />
 
       <NewFolderDialog
         open={newFolder}
@@ -814,6 +854,88 @@ function MaterialDialog({
         </Field>
         <Field label="Tags" optional hint="Comma separated — travel, b1, speaking">
           {(p) => <Input {...p} value={tags} onChange={(e) => setTags(e.target.value)} />}
+        </Field>
+        <button type="submit" className="hidden" aria-hidden tabIndex={-1} />
+      </form>
+    </Dialog>
+  );
+}
+
+/** A link is a material whose location is a URL - same folders, tags and search. */
+function NewLinkDialog({
+  open,
+  onOpenChange,
+  folderName,
+  pending,
+  onAdd,
+}: {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  folderName?: string;
+  pending: boolean;
+  onAdd: (url: string, name: string) => void;
+}) {
+  const [url, setUrl] = useState("");
+  const [name, setName] = useState("");
+  useEffect(() => {
+    if (open) {
+      setUrl("");
+      setName("");
+    }
+  }, [open]);
+
+  const submit = () => !pending && url.trim() && onAdd(url.trim(), name);
+
+  return (
+    <Dialog
+      open={open}
+      onOpenChange={onOpenChange}
+      title="Add a link"
+      description={
+        folderName
+          ? `Saved to ${folderName}. It opens in your browser, like any other material.`
+          : "A page you teach from - a video, a worksheet, an exercise. It opens in your browser."
+      }
+      width={480}
+      footer={
+        <>
+          <Button onClick={() => onOpenChange(false)}>Cancel</Button>
+          <Button variant="primary" disabled={!url.trim() || pending} onClick={submit}>
+            <Link2 />
+            Add link
+          </Button>
+        </>
+      }
+    >
+      <form
+        className="space-y-6"
+        onSubmit={(e) => {
+          e.preventDefault();
+          submit();
+        }}
+      >
+        <Field label="Link" hint="Starting with http:// or https://">
+          {(p) => (
+            <Input
+              {...p}
+              autoFocus
+              type="url"
+              inputMode="url"
+              value={url}
+              onChange={(e) => setUrl(e.target.value)}
+              placeholder="https://learnenglish.britishcouncil.org/..."
+            />
+          )}
+        </Field>
+        <Field label="Name" optional hint="Left empty, the website name is used">
+          {(p) => (
+            <Input
+              {...p}
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              placeholder="Present perfect exercises"
+            />
+          )}
         </Field>
         <button type="submit" className="hidden" aria-hidden tabIndex={-1} />
       </form>

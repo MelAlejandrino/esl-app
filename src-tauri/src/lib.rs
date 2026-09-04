@@ -107,6 +107,7 @@ pub fn run() {
             materials::materials_list,
             materials::material_get,
             materials::materials_import,
+            materials::material_add_link,
             materials::material_open,
             materials::material_reveal,
             materials::material_rename,
@@ -277,6 +278,50 @@ mod tests {
 
         std::fs::remove_file(&good).unwrap();
         assert!(!materials::list(&conn, "", None, false, "name").unwrap()[0].exists);
+
+        // --- links: scheme validated, named from the host, deduped, never "missing"
+        assert!(materials::add_link(&conn, "javascript:alert(1)", None, None).is_err());
+        assert!(materials::add_link(&conn, "C:/notes.pdf", None, None).is_err());
+        assert!(materials::add_link(&conn, "https://", None, None).is_err(), "no host");
+
+        materials::add_link(&conn, "https://www.bbc.co.uk/learningenglish?x=1", None, None)
+            .unwrap();
+        materials::add_link(
+            &conn,
+            "https://quizlet.com/travel",
+            Some("Travel flashcards".into()),
+            None,
+        )
+        .unwrap();
+        assert!(
+            materials::add_link(&conn, " https://quizlet.com/travel ", None, None).is_err(),
+            "same URL only once, whitespace and all"
+        );
+
+        // An uppercased scheme is accepted and stored lowercased, so the read-time
+        // is_url check can never disagree and show a link as a missing file.
+        materials::add_link(&conn, "HTTPS://Example.com/Unit1", None, None).unwrap();
+        // Userinfo is not the site — this must not be named after bbc.co.uk.
+        materials::add_link(&conn, "https://www.bbc.co.uk@evil.example/x", None, None).unwrap();
+
+        let links = materials::list(&conn, "link", None, false, "name").unwrap();
+        assert_eq!(links.len(), 4);
+        assert_eq!(links[0].name, "bbc.co.uk", "unnamed link falls back to its host");
+        assert!(
+            links.iter().any(|l| l.name == "evil.example"),
+            "named after the real host, not the userinfo"
+        );
+        // ponytail: only the scheme is normalised, so the host keeps the case it
+        // was pasted with. Lowercase the host too if the same site turning up twice
+        // under different capitalisation ever bothers anyone.
+        let upper = links.iter().find(|l| l.name == "Example.com").unwrap();
+        assert_eq!(upper.path, "https://Example.com/Unit1", "scheme lowered, path untouched");
+        assert!(upper.exists, "an uppercased scheme still reads as a link, not a lost file");
+        assert!(links.iter().all(|l| l.exists), "a link is never reported missing");
+        assert_eq!(
+            materials::list(&conn, "travel flashcards", None, false, "name").unwrap().len(),
+            1
+        );
 
         // --- deleting a student takes their notes with them, and nobody else's
         conn.execute("DELETE FROM students WHERE id = ?1", [maria]).unwrap();

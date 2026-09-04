@@ -2,6 +2,7 @@ import { useQuery } from "@tanstack/react-query";
 import {
   ArrowRight,
   FilePlus2,
+  Link2,
   Upload,
   UserPlus,
   Users,
@@ -258,7 +259,7 @@ function MaterialIcon({ kind, exists }: { kind: string; exists: boolean }) {
         exists ? "bg-sunken text-ink-3" : "bg-bad-soft text-bad"
       }`}
     >
-      {kind.slice(0, 2)}
+      {kind === "LINK" ? <Link2 className="size-4" /> : kind.slice(0, 2)}
     </span>
   );
 }

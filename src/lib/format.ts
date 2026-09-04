@@ -103,7 +103,14 @@ export function avatarTone(seed: string): string {
 export const LEVELS = ["A1", "A2", "B1", "B2", "C1", "C2"] as const;
 
 /** Coarse category for icon + colour, derived from the stored extension. */
-export type MaterialCategory = "doc" | "slides" | "sheet" | "image" | "audio" | "video";
+export type MaterialCategory =
+  | "doc"
+  | "slides"
+  | "sheet"
+  | "image"
+  | "audio"
+  | "video"
+  | "link";
 
 export function categoryOf(kind: string): MaterialCategory {
   switch (kind.toUpperCase()) {
@@ -124,6 +131,8 @@ export function categoryOf(kind: string): MaterialCategory {
       return "audio";
     case "MP4":
       return "video";
+    case "LINK":
+      return "link";
     default:
       return "doc";
   }

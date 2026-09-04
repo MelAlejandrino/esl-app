@@ -77,8 +77,12 @@ export type Material = {
   updatedAt: string;
   lastOpenedAt: string | null;
   tags: string[];
+  /** Always true for a link. */
   exists: boolean;
 };
+
+/** Links share the materials table - `path` holds the URL. */
+export const isLink = (m: Material) => m.kind === "LINK";
 
 export type Folder = { id: number; name: string; count: number };
 
@@ -154,6 +158,8 @@ export const api = {
   material: (id: number) => call<Material>("material_get", { id }),
   importMaterials: (paths: string[], folderId: number | null = null) =>
     call<ImportResult>("materials_import", { paths, folderId }),
+  addLink: (url: string, name: string | null, folderId: number | null = null) =>
+    call<number>("material_add_link", { url, name, folderId }),
   openMaterial: (id: number) => call<void>("material_open", { id }),
   revealMaterial: (id: number) => call<void>("material_reveal", { id }),
   renameMaterial: (id: number, name: string) => call<void>("material_rename", { id, name }),
