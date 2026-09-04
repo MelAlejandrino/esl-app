@@ -21,6 +21,19 @@ The run fails early (before building) if the tag doesn't match
 
 To rebuild an existing tag, run the workflow manually from the Actions tab.
 
+## v0.2.0
+
+- **Links are materials too** — save a web page next to your files. Same folders, tags,
+  favourites and search; it opens in your browser instead of an app. A link you do not
+  name is named after its site.
+- **Update check** — Settings, under About: one button that asks GitHub whether a newer
+  version exists. Nothing checks in the background, and it is the only request the app
+  ever makes.
+
+**Install:** Windows `.msi` · macOS `.dmg` (universal, Intel + Apple Silicon) ·
+Linux `.AppImage` / `.deb`. Still unsigned, so Windows SmartScreen and macOS Gatekeeper
+will warn on first run.
+
 ## v0.1.0
 
 First release.
