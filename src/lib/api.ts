@@ -21,9 +21,11 @@ export type Student = {
   viewedAt: string | null;
   noteCount: number;
   lastClass: string | null;
+  color: string | null;
 };
 
 export type StudentInput = {
+  color?: string | null;
   id?: number | null;
   name: string;
   preferredName?: string | null;

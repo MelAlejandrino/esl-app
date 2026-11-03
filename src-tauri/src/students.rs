@@ -22,12 +22,14 @@ pub struct Student {
     pub viewed_at: Option<String>,
     pub note_count: i64,
     pub last_class: Option<String>,
+    pub color: Option<String>,
 }
 
 const COLS: &str = "s.id, s.name, s.preferred_name, s.age, s.email, s.phone, s.english_level,
     s.goals, s.general_notes, s.created_at, s.updated_at, s.archived_at, s.viewed_at,
     (SELECT COUNT(*) FROM class_notes n WHERE n.student_id = s.id),
-    (SELECT MAX(n.class_date) FROM class_notes n WHERE n.student_id = s.id)";
+    (SELECT MAX(n.class_date) FROM class_notes n WHERE n.student_id = s.id),
+    s.color";
 
 fn map(r: &Row) -> rusqlite::Result<Student> {
     Ok(Student {
@@ -46,6 +48,7 @@ fn map(r: &Row) -> rusqlite::Result<Student> {
         viewed_at: r.get(12)?,
         note_count: r.get(13)?,
         last_class: r.get(14)?,
+        color: r.get(15)?,
     })
 }
 
@@ -61,6 +64,7 @@ pub struct StudentInput {
     pub english_level: Option<String>,
     pub goals: Option<String>,
     pub general_notes: Option<String>,
+    pub color: Option<String>,
 }
 
 /// Trim, and turn empty strings into NULL so the UI never renders a blank field.
@@ -83,6 +87,7 @@ impl StudentInput {
         self.english_level = clean(self.english_level);
         self.goals = clean(self.goals);
         self.general_notes = clean(self.general_notes);
+        self.color = clean(self.color);
         if let Some(age) = self.age {
             if !(1..=120).contains(&age) {
                 return Err(AppError::msg("Age should be between 1 and 120."));
@@ -144,9 +149,9 @@ pub fn save(conn: &Connection, input: StudentInput) -> Result<i64> {
         Some(id) => {
             let n = conn.execute(
                 "UPDATE students SET name=?1, preferred_name=?2, age=?3, email=?4, phone=?5,
-                   english_level=?6, goals=?7, general_notes=?8, updated_at=datetime('now')
+                   english_level=?6, goals=?7, general_notes=?8, color=?10, updated_at=datetime('now')
                  WHERE id=?9",
-                params![i.name, i.preferred_name, i.age, i.email, i.phone, i.english_level, i.goals, i.general_notes, id],
+                params![i.name, i.preferred_name, i.age, i.email, i.phone, i.english_level, i.goals, i.general_notes, id, i.color],
             )?;
             if n == 0 {
                 return Err(AppError::msg("That student no longer exists."));
@@ -155,9 +160,9 @@ pub fn save(conn: &Connection, input: StudentInput) -> Result<i64> {
         }
         None => {
             conn.execute(
-                "INSERT INTO students (name, preferred_name, age, email, phone, english_level, goals, general_notes)
-                 VALUES (?1,?2,?3,?4,?5,?6,?7,?8)",
-                params![i.name, i.preferred_name, i.age, i.email, i.phone, i.english_level, i.goals, i.general_notes],
+                "INSERT INTO students (name, preferred_name, age, email, phone, english_level, goals, general_notes, color)
+                 VALUES (?1,?2,?3,?4,?5,?6,?7,?8,?9)",
+                params![i.name, i.preferred_name, i.age, i.email, i.phone, i.english_level, i.goals, i.general_notes, i.color],
             )?;
             Ok(conn.last_insert_rowid())
         }

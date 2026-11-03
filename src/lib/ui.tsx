@@ -346,21 +346,24 @@ export function Badge({
 export function Avatar({
   name,
   tone,
+  color,
   size = 36,
   className,
 }: {
   name: string;
-  tone: string;
+  tone?: string;
+  /** Solid fill (hex) with white initials; wins over `tone`. */
+  color?: string;
   size?: number;
   className?: string;
 }) {
   return (
     <span
       aria-hidden
-      style={{ width: size, height: size, fontSize: size * 0.36 }}
+      style={{ width: size, height: size, fontSize: size * 0.36, background: color }}
       className={cn(
         "grid shrink-0 place-items-center rounded-full font-semibold tracking-tight",
-        tone,
+        color ? "text-white" : tone,
         className,
       )}
     >

@@ -1,7 +1,7 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { api, type Student, type StudentInput } from "../lib/api";
-import { LEVELS } from "../lib/format";
+import { LEVELS, STUDENT_COLORS, studentColor } from "../lib/format";
 import { useToast } from "../lib/toast";
 import { Button, Dialog, Dropdown, Field, Input, Textarea } from "../lib/ui";
 
@@ -26,6 +26,7 @@ const from = (s: Student): StudentInput => ({
   englishLevel: s.englishLevel ?? "",
   goals: s.goals ?? "",
   generalNotes: s.generalNotes ?? "",
+  color: s.color,
 });
 
 /**
@@ -64,6 +65,8 @@ export function StudentDialog({
     },
     onError: (e: Error) => setError(e.message),
   });
+
+  const isCustom = Boolean(form.color) && !(STUDENT_COLORS as readonly string[]).includes(form.color!);
 
   const submit = () => {
     if (!form.name.trim()) {
@@ -176,6 +179,44 @@ export function StudentDialog({
               />
             )}
           </Field>
+        </div>
+
+        <div>
+          <div className="mb-2 text-xs font-medium text-ink-2">Colour</div>
+          <div className="flex gap-2.5" role="radiogroup" aria-label="Student colour">
+            {STUDENT_COLORS.map((c) => (
+              <button
+                key={c}
+                type="button"
+                role="radio"
+                aria-checked={(form.color || studentColor({ name: form.name, color: null })) === c}
+                aria-label={c}
+                onClick={() => set("color", c)}
+                style={{ background: c }}
+                className="size-7 rounded-full ring-offset-2 ring-offset-surface aria-checked:ring-2 aria-checked:ring-ink"
+              />
+            ))}
+            {/* Native colour wheel for when the presets are all taken. */}
+            <label
+              title="Custom colour"
+              aria-checked={isCustom}
+              role="radio"
+              style={{
+                background: isCustom
+                  ? form.color!
+                  : "conic-gradient(red, yellow, lime, cyan, blue, magenta, red)",
+              }}
+              className="relative size-7 cursor-pointer rounded-full ring-offset-2 ring-offset-surface aria-checked:ring-2 aria-checked:ring-ink"
+            >
+              <input
+                type="color"
+                aria-label="Custom colour"
+                value={form.color || "#888888"}
+                onChange={(e) => set("color", e.target.value)}
+                className="absolute inset-0 size-full cursor-pointer opacity-0"
+              />
+            </label>
+          </div>
         </div>
 
         <Field label="Learning goals" optional>

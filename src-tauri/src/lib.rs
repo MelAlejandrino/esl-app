@@ -146,6 +146,7 @@ mod tests {
             english_level: Some(level.into()),
             goals: None,
             general_notes: None,
+            color: None,
         }
     }
 

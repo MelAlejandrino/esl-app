@@ -15,7 +15,7 @@ import {
 import { useEffect, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { api, keys, type ClassNote } from "../lib/api";
-import { avatarTone, formatDate, initials, relativeDate } from "../lib/format";
+import { formatDate, initials, relativeDate, studentColor, tint } from "../lib/format";
 import { useToast } from "../lib/toast";
 import {
   Avatar,
@@ -100,7 +100,10 @@ export function StudentProfile() {
 
   return (
     <>
-      <header className="shrink-0 border-b border-line bg-canvas px-8 pt-6 pb-7 xl:px-10">
+      <header
+        style={{ background: tint(studentColor(student), 10), borderTop: `4px solid ${studentColor(student)}` }}
+        className="shrink-0 border-b border-line px-8 pt-6 pb-7 xl:px-10"
+      >
         <div className="mx-auto w-full max-w-[1180px]">
           <Link
             to="/students"
@@ -111,7 +114,7 @@ export function StudentProfile() {
           </Link>
 
           <div className="mt-4 flex items-start gap-5">
-            <Avatar name={initials(student.name)} tone={avatarTone(student.name)} size={64} />
+            <Avatar name={initials(student.name)} color={studentColor(student)} size={64} />
 
             <div className="min-w-0 flex-1">
               <h1 className="flex items-center gap-3 text-3xl font-semibold tracking-tight text-ink">

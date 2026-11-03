@@ -21,6 +21,19 @@ The run fails early (before building) if the tag doesn't match
 
 To rebuild an existing tag, run the workflow manually from the Actions tab.
 
+## v0.3.0
+
+- **Student colours** — give each student a colour so you can tell who you are
+  clicking. Pick one of eight presets, or use the colour wheel when they are all taken.
+  Students you have not coloured get one automatically.
+- **Solid student rows** — rows are now filled with a pale tint of the student's colour
+  and a colour bar on the left; the student page header carries the same colour.
+- Backups made by earlier versions cannot be restored into this one.
+
+**Install:** Windows `.msi` · macOS `.dmg` (universal, Intel + Apple Silicon) ·
+Linux `.AppImage` / `.deb`. Still unsigned, so Windows SmartScreen and macOS Gatekeeper
+will warn on first run.
+
 ## v0.2.0
 
 - **Links are materials too** — save a web page next to your files. Same folders, tags,

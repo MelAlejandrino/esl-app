@@ -100,6 +100,29 @@ export function avatarTone(seed: string): string {
   return tones[h % tones.length];
 }
 
+/** Colours a teacher can give a student. Stored by hex; null falls back to a hash pick. */
+export const STUDENT_COLORS = [
+  "#3f8f6b",
+  "#c08a2e",
+  "#4a7bc0",
+  "#c0566a",
+  "#7a5cc0",
+  "#2f9aa0",
+  "#d27a3a",
+  "#5f6b7a",
+] as const;
+
+export function studentColor(s: { name: string; color: string | null }): string {
+  if (s.color) return s.color;
+  let h = 0;
+  for (const ch of s.name) h = (h * 31 + ch.codePointAt(0)!) >>> 0;
+  return STUDENT_COLORS[h % STUDENT_COLORS.length];
+}
+
+/** Opaque pale tint of a student colour, for solid row backgrounds. */
+export const tint = (hex: string, pct = 12) =>
+  `color-mix(in srgb, ${hex} ${pct}%, var(--color-surface))`;
+
 export const LEVELS = ["A1", "A2", "B1", "B2", "C1", "C2"] as const;
 
 /** Coarse category for icon + colour, derived from the stored extension. */

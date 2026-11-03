@@ -9,11 +9,11 @@ import {
   UserPlus,
   Users,
 } from "lucide-react";
-import { useState } from "react";
+import { useState, type CSSProperties } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { PageBody, PageHeader } from "../app/Shell";
 import { api, keys, type Student, type StudentQuery } from "../lib/api";
-import { avatarTone, cn, initials, isRecent, LEVELS, relativeDate } from "../lib/format";
+import { cn, initials, isRecent, LEVELS, relativeDate, studentColor, tint } from "../lib/format";
 import { useToast } from "../lib/toast";
 import {
   Avatar,
@@ -214,11 +214,12 @@ export function Students() {
                   trigger={
                     <tr
                       onClick={() => open(s)}
-                      className="group h-15 cursor-default [&>td]:border-b [&>td]:border-line [&>td]:transition-colors hover:[&>td]:bg-surface"
+                      style={{ "--row": tint(studentColor(s)), "--bar": studentColor(s) } as CSSProperties}
+                      className="group h-15 cursor-default [&>td]:border-b-2 [&>td]:border-canvas [&>td]:bg-(--row) [&>td]:transition-[filter] hover:[&>td]:brightness-95 [&>td:first-child]:rounded-l-lg [&>td:first-child]:border-l-4 [&>td:first-child]:border-l-(--bar) [&>td:last-child]:rounded-r-lg"
                     >
                       <td className="px-4">
                         <div className="flex items-center gap-3.5">
-                          <Avatar name={initials(s.name)} tone={avatarTone(s.name)} size={38} />
+                          <Avatar name={initials(s.name)} color={studentColor(s)} size={38} />
                           {isRecent(s.viewedAt) && (
                             <Tooltip label="You opened this student recently">
                               <span className="-ml-2 size-2 shrink-0 rounded-full bg-accent" />

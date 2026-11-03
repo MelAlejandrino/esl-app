@@ -89,7 +89,7 @@ INSERT INTO folders (name) VALUES
 /// ponytail: plain array of steps instead of a migration crate — add step 2 by
 /// pushing another `&str`; move to a real migration tool only if steps get
 /// data-dependent.
-const MIGRATIONS: &[&str] = &[SCHEMA];
+const MIGRATIONS: &[&str] = &[SCHEMA, "ALTER TABLE students ADD COLUMN color TEXT;"];
 
 /// The schema version this build speaks. A backup from a different one is refused
 /// rather than half-imported.
